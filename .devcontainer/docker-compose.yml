@@ -1,0 +1,27 @@
+version: '3.7'
+services:
+  run:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    volumes:
+      - ..:/app
+    entrypoint: /bin/sh -c "while sleep 1000; do :; done"
+    profiles: ["run"]
+
+  dev:
+    image: mcr.microsoft.com/devcontainers/python
+    env_file:
+      - ../.env # Load environment variables from root .env file
+    volumes:
+      - ..:/app # Mount project root
+      - ../test/certs:/certs # Mount test certs to /certs
+    entrypoint: /bin/sh -c "while sleep 1000; do :; done"
+    profiles: ["dev"]
+
+  aider:
+    image: paulgauthier/aider
+    volumes:
+      - ..:/app
+    entrypoint: /bin/sh -c "while sleep 1000; do :; done"
+    profiles: ["improve"]
