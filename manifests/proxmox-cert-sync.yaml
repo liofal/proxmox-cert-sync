@@ -1,0 +1,131 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: proxmox-cert-sync
+  namespace: proxmox
+  labels:
+    app.kubernetes.io/name: proxmox-cert-sync
+    app.kubernetes.io/component: cronjob
+    app.kubernetes.io/managed-by: manifest
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: proxmox-cert-sync
+  namespace: proxmox
+  labels:
+    app.kubernetes.io/name: proxmox-cert-sync
+    app.kubernetes.io/component: cronjob
+    app.kubernetes.io/managed-by: manifest
+rules:
+  - apiGroups: [""]
+    resources: ["secrets", "configmaps"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: proxmox-cert-sync
+  namespace: proxmox
+  labels:
+    app.kubernetes.io/name: proxmox-cert-sync
+    app.kubernetes.io/component: cronjob
+    app.kubernetes.io/managed-by: manifest
+subjects:
+  - kind: ServiceAccount
+    name: proxmox-cert-sync
+    namespace: proxmox
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: proxmox-cert-sync
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: proxmox-cert-sync
+  namespace: proxmox
+  labels:
+    app.kubernetes.io/name: proxmox-cert-sync
+    app.kubernetes.io/component: cronjob
+    app.kubernetes.io/managed-by: manifest
+spec:
+  schedule: "0 3 1 * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      ttlSecondsAfterFinished: 3600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: proxmox-cert-sync
+            app.kubernetes.io/component: cronjob
+        spec:
+          restartPolicy: Never
+          serviceAccountName: proxmox-cert-sync
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            fsGroup: 65532
+          containers:
+            - name: sync
+              image: ghcr.io/liofal/proxmox-cert-sync:latest
+              imagePullPolicy: IfNotPresent
+              securityContext:
+                readOnlyRootFilesystem: true
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+              env:
+                - name: PROXMOX_API_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: proxmox-credentials
+                      key: apiUrl
+                - name: PROXMOX_TOKEN_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: proxmox-credentials
+                      key: apiTokenId
+                - name: PROXMOX_TOKEN_SECRET
+                  valueFrom:
+                    secretKeyRef:
+                      name: proxmox-credentials
+                      key: apiTokenSecret
+                - name: PROXMOX_NODE_NAME
+                  valueFrom:
+                    secretKeyRef:
+                      name: proxmox-credentials
+                      key: nodeName
+                - name: VERIFY_TLS
+                  value: "true"
+                - name: DRY_RUN
+                  value: "false"
+                - name: MAX_RETRIES
+                  value: "1"
+                - name: TLS_CERT_KEY
+                  value: tls.crt
+                - name: TLS_KEY_KEY
+                  value: tls.key
+                - name: TLS_CA_KEY
+                  value: ca.crt
+                - name: INCLUDE_CA_BUNDLE
+                  value: "true"
+                - name: SERVICES_TO_RESTART
+                  value: pveproxy
+                - name: LOG_FORMAT
+                  value: text
+                - name: LOG_LEVEL
+                  value: info
+              volumeMounts:
+                - name: tls-material
+                  mountPath: /certs
+                  readOnly: true
+          volumes:
+            - name: tls-material
+              secret:
+                secretName: proxmox-certmanager-tls

@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+.pytest_cache/
+test/certs/tls.crt
+test/certs/tls.key
+test/certs/ca.crt
+test/certs/tls.crt
+test/certs/tls.key
