@@ -20,7 +20,7 @@
 ## Releasing & contributing
 
 - Push commits with semantic commit types (`feat:`, `fix:`, etc.) to let the Release workflow cut versions automatically.
-- The Helm chart’s image tag defaults to the chart `appVersion`; updating the chart version via semantic-release keeps container and chart in sync.
+- The Helm chart’s image tag defaults to the chart `appVersion` (plain semver like `1.2.0`); updating the chart version via semantic-release keeps container and chart in sync.
 - Renovate is configured for pip, Dockerfile, GitHub Actions, and Helm values to keep dependencies fresh.
 
 Refer to `docs/INSTALL.md` for full installation and operational guidance.
