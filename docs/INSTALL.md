@@ -4,7 +4,7 @@
 
 `proxmox-cert-sync` keeps a Proxmox VE node in sync with the latest TLS certificate issued in your Kubernetes cluster. A CronJob validates the certificate bundle, uploads it to Proxmox through the REST API, and restarts the required services.
 
-The repository ships a ready-to-apply manifest at `manifests/proxmox-cert-sync.yaml`. Customize it for your environment and apply it with `kubectl`.
+The project is published as a Helm chart (`oci://ghcr.io/liofal/proxmox-cert-sync/proxmox-cert-sync`) and container image (`ghcr.io/liofal/proxmox-cert-sync`). Use Helm directly or manage the release declaratively with Flux.
 
 ## Prerequisites
 
@@ -12,32 +12,22 @@ The repository ships a ready-to-apply manifest at `manifests/proxmox-cert-sync.y
 - Proxmox VE 7.x/8.x node reachable over HTTPS
 - cert-manager (or equivalent) issuing the TLS secret `proxmox-certmanager-tls`
 - Proxmox API token with permission to upload certificates and restart services
-- Local workstation with `kubectl` (and optionally `kustomize`) for applying manifests
+- Local workstation with `kubectl`; install `helm` for CLI deployments or `flux` if you use FluxCD
 
-## Create a Proxmox API Token
+## Proxmox API Token
 
 1. Log in to the Proxmox UI as an account with `Sys.Modify` privileges on the target node.
 2. Navigate to **Datacenter ➜ Permissions ➜ API Tokens** and create a token.
-3. Grant these privileges to the token:
-   - `Sys.Audit`
-   - `Sys.Modify`
-4. Record the token ID (`<user>@<realm>!<token_name>`) and the secret. The secret is only shown once—store it securely.
+3. Grant `Sys.Audit` and `Sys.Modify` privileges on `/nodes/<node-name>`.
+4. Record the token ID (`<user>@<realm>!<token_name>`) and the secret. The secret appears only once—store it securely.
 
-## Prepare Kubernetes Secrets
+## Kubernetes Secrets
 
 ### Certificate Secret
 
-The CronJob mounts a TLS secret named `proxmox-certmanager-tls` that must contain the keys `tls.crt`, `tls.key`, and optionally `ca.crt`.
+The CronJob mounts a TLS secret named `proxmox-certmanager-tls` that must contain `tls.crt`, `tls.key`, and optionally `ca.crt`.
 
-If cert-manager manages the certificate, the secret already exists. Otherwise, create it manually:
-
-```bash
-kubectl -n proxmox create secret tls proxmox-certmanager-tls \
-  --cert=tls.crt \
-  --key=tls.key
-```
-
-Add the CA certificate if required:
+If cert-manager manages the certificate, nothing more is needed. Otherwise:
 
 ```bash
 kubectl -n proxmox create secret generic proxmox-certmanager-tls \
@@ -48,19 +38,19 @@ kubectl -n proxmox create secret generic proxmox-certmanager-tls \
 
 ### Proxmox Credentials Secret
 
-Create a secret that stores the API endpoint, token ID, token secret, and target node name. Encrypt it with SOPS before committing to Git.
+Create a secret that stores the API endpoint, token ID, token secret, and target node name. Encrypt it with SOPS (or your preferred system) before committing.
 
 ```bash
 kubectl -n proxmox create secret generic proxmox-credentials \
-  --from-literal=apiUrl=https://proxmox.liofal.net:8006 \
+  --from-literal=apiUrl=https://proxmox.example.com:8006 \
   --from-literal=apiTokenId="root@pam!flux-sync" \
   --from-literal=apiTokenSecret="<token-secret>" \
   --from-literal=nodeName=pve
 ```
 
-Adjust the key names if you change them inside the manifest.
+Adjust key names if you change them via Helm values.
 
-## Deploy the CronJob
+## Option A – Helm CLI
 
 1. Create the namespace if it does not exist:
 
@@ -68,31 +58,109 @@ Adjust the key names if you change them inside the manifest.
    kubectl create namespace proxmox
    ```
 
-2. Review `manifests/proxmox-cert-sync.yaml` and tailor it to your environment:
-
-   - Update `image:` to the release tag you want to run (e.g., `ghcr.io/liofal/proxmox-cert-sync:v0.1.0`).
-   - Change `schedule`, `services`, or additional environment variables as needed.
-   - Adjust secret names if they differ from the defaults above.
-
-3. Apply the manifest:
+2. Authenticate to GitHub Container Registry (replace with a PAT that has `read:packages`):
 
    ```bash
-   kubectl apply -f manifests/proxmox-cert-sync.yaml
+   echo "$GHCR_TOKEN" | helm registry login ghcr.io --username "$GHCR_USER" --password-stdin
    ```
 
-4. Verify the CronJob:
+3. Install the chart with your overrides:
 
    ```bash
-   kubectl -n proxmox get cronjob proxmox-cert-sync
+   helm install proxmox-cert-sync oci://ghcr.io/liofal/proxmox-cert-sync/proxmox-cert-sync \
+     --namespace proxmox \
+     --version 1.2.0 \
+     --values my-values.yaml
    ```
 
-### GitOps / Kustomize
+   `kube/charts/proxmox-cert-sync/values.yaml` documents all configurable options. Notably:
 
-For GitOps workflows, copy the manifest into your configuration repository and manage overrides via `kustomization.yaml` patches. Ensure the secrets are provided via your preferred secret management workflow (SOPS, SealedSecrets, External Secrets, etc.).
+   - Leave `image.tag` empty to follow the chart `appVersion` (e.g., `v1.2.0`).
+   - Override `cronJob.schedule` or `servicesToRestart` as required.
+
+4. Upgrade later releases with `helm upgrade` and the new chart version.
+
+## Option B – Flux HelmRelease
+
+Use FluxCD to reconcile the Helm chart from GHCR. Create a `HelmRepository` and `HelmRelease` similar to:
+
+```yaml
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: proxmox-cert-sync
+  namespace: flux-system
+spec:
+  interval: 30m
+  type: oci
+  url: oci://ghcr.io/liofal/proxmox-cert-sync
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: proxmox-cert-sync
+  namespace: proxmox
+spec:
+  interval: 15m
+  timeout: 5m
+  chart:
+    spec:
+      chart: proxmox-cert-sync
+      version: "1.2.0"
+      sourceRef:
+        kind: HelmRepository
+        name: proxmox-cert-sync
+        namespace: flux-system
+      interval: 15m
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  uninstall:
+    keepHistory: false
+  values:
+    image:
+      # tag defaults to v{{ .Chart.AppVersion }}; override only if you need a specific build
+      pullPolicy: IfNotPresent
+    proxmox:
+      credentialsSecretName: proxmox-credentials
+      apiUrlKey: apiUrl
+      tokenIdKey: apiTokenId
+      tokenSecretKey: apiTokenSecret
+      nodeNameKey: nodeName
+      verifyTls: true
+    certificate:
+      secretName: proxmox-certmanager-tls
+      tlsCrtKey: tls.crt
+      tlsKeyKey: tls.key
+      caCrtKey: ca.crt
+      includeCaBundle: true
+    cronJob:
+      schedule: "0 3 1 * *"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 1
+      failedJobsHistoryLimit: 3
+    job:
+      dryRun: false
+      maxRetries: 1
+      backoffLimit: 1
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 200m
+          memory: 256Mi
+```
+
+Commit the manifest to your Flux repository. Flux will fetch chart updates every 15 minutes; bump `spec.chart.spec.version` when you want to roll out a new release.
 
 ## Manual Sync
 
-To force a run between scheduled executions:
+Force a run between scheduled executions:
 
 ```bash
 kubectl -n proxmox create job \
@@ -109,16 +177,25 @@ kubectl -n proxmox logs -f job/proxmox-cert-sync-manual-<timestamp>
 ## Troubleshooting
 
 - **Certificate mismatch**: Ensure the secret contains matching `tls.crt`/`tls.key`. The job exits early if validation fails.
-- **Hostname validation**: The uploaded certificate must cover the host extracted from `PROXMOX_API_URL`. Override `EXPECTED_HOSTNAMES` via the manifest if needed.
-- **API failures**: Inspect the job logs. Non-2xx responses from the Proxmox API return detailed error messages.
-- **TLS issues**: If the Proxmox API uses a self-signed certificate, mount a CA bundle secret and set `VERIFY_TLS=false` only as a last resort.
+- **Hostname validation**: The uploaded certificate must cover the host extracted from `PROXMOX_API_URL`. Override `EXPECTED_HOSTNAMES` via values if needed.
+- **API failures**: Inspect job logs. Non-2xx responses from the Proxmox API include the returned message.
+- **TLS issues**: If the Proxmox API uses a self-signed certificate, mount a CA bundle secret. Set `proxmox.verifyTls=false` only as a last resort.
 
 ## Cleanup
 
-Remove the deployment with:
+### Helm CLI
 
 ```bash
-kubectl delete -f manifests/proxmox-cert-sync.yaml
+helm uninstall proxmox-cert-sync --namespace proxmox
 ```
 
-This deletes the CronJob and associated RBAC while leaving secrets untouched.
+### Flux
+
+Delete the `HelmRelease` (and optionally the `HelmRepository`):
+
+```bash
+kubectl delete helmrelease proxmox-cert-sync -n proxmox
+kubectl delete helmrepository proxmox-cert-sync -n flux-system
+```
+
+Secrets remain in place so you can redeploy later.
