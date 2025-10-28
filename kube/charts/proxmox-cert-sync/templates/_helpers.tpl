@@ -20,7 +20,7 @@
 {{- end -}}
 
 {{- define "proxmox-cert-sync.image" -}}
-{{- $tag := default (printf "v%s" .Chart.AppVersion) .Values.image.tag -}}
+{{- $tag := default .Chart.AppVersion .Values.image.tag -}}
 {{- printf "%s:%s" .Values.image.repository $tag -}}
 {{- end -}}
 

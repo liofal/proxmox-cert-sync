@@ -75,7 +75,7 @@ Adjust key names if you change them via Helm values.
 
    `kube/charts/proxmox-cert-sync/values.yaml` documents all configurable options. Notably:
 
-   - Leave `image.tag` empty to follow the chart `appVersion` (e.g., `v1.2.0`).
+   - Leave `image.tag` empty to follow the chart `appVersion` (e.g., `1.2.0`).
    - Override `cronJob.schedule` or `servicesToRestart` as required.
 
 4. Upgrade later releases with `helm upgrade` and the new chart version.
@@ -123,7 +123,7 @@ spec:
     keepHistory: false
   values:
     image:
-      # tag defaults to v{{ .Chart.AppVersion }}; override only if you need a specific build
+      # tag defaults to {{ .Chart.AppVersion }}; override only if you need a specific build
       pullPolicy: IfNotPresent
     proxmox:
       credentialsSecretName: proxmox-credentials
