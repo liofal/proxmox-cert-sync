@@ -215,7 +215,7 @@ def _upload_certificate(session: requests.Session, config: Config, cert_pem: byt
 
     url = f"{config.api_url}/api2/json/nodes/{config.node_name}/certificates/custom"
     data = {
-        "certificate": bundle.decode("utf-8"),
+        "certificates": bundle.decode("utf-8"),
         "key": key_pem.decode("utf-8"),
         "force": 1,
     }
