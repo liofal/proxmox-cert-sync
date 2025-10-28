@@ -19,6 +19,11 @@
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" -}}
 {{- end -}}
 
+{{- define "proxmox-cert-sync.image" -}}
+{{- $tag := default (printf "v%s" .Chart.AppVersion) .Values.image.tag -}}
+{{- printf "%s:%s" .Values.image.repository $tag -}}
+{{- end -}}
+
 {{- define "proxmox-cert-sync.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "proxmox-cert-sync.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}

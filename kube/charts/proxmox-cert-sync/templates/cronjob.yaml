@@ -36,7 +36,7 @@ spec:
           {{- end }}
           containers:
             - name: sync
-              image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+              image: {{ include "proxmox-cert-sync.image" . | quote }}
               imagePullPolicy: {{ .Values.image.pullPolicy }}
               {{- with .Values.securityContext }}
               securityContext:

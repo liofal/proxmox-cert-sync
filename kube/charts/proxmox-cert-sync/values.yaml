@@ -1,6 +1,6 @@
 image:
   repository: ghcr.io/liofal/proxmox-cert-sync
-  tag: v1.0.0
+  tag: "" # defaults to v{{ .Chart.AppVersion }} when unset
   pullPolicy: IfNotPresent
 
 nameOverride: ""
