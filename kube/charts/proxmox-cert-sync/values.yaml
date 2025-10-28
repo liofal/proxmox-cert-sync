@@ -1,0 +1,88 @@
+image:
+  repository: ghcr.io/liofal/proxmox-cert-sync
+  tag: v1.0.0
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+rbac:
+  create: true
+
+imagePullSecrets: []
+
+podAnnotations: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  fsGroup: 65532
+
+securityContext:
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+cronJob:
+  schedule: "0 3 1 * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  ttlSecondsAfterFinished: 3600
+
+job:
+  dryRun: false
+  maxRetries: 1
+  backoffLimit: 1
+
+servicesToRestart:
+  - pveproxy
+
+logging:
+  level: info
+  format: text
+
+metrics:
+  enabled: false
+
+proxmox:
+  credentialsSecretName: proxmox-credentials
+  createCredentialsSecret: false
+  credentialsData: {}
+  apiUrlKey: apiUrl
+  tokenIdKey: apiTokenId
+  tokenSecretKey: apiTokenSecret
+  nodeNameKey: nodeName
+  verifyTls: true
+
+certificate:
+  secretName: proxmox-certmanager-tls
+  namespace: proxmox
+  tlsCrtKey: tls.crt
+  tlsKeyKey: tls.key
+  caCrtKey: ca.crt
+  includeCaBundle: true
+
+extraEnv: []
+extraEnvFrom: []

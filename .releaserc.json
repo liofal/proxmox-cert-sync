@@ -3,6 +3,23 @@
   "plugins": [
     "@semantic-release/commit-analyzer",
     "@semantic-release/release-notes-generator",
+    [
+      "semantic-release-helm",
+      {
+        "chartPath": "kube/charts/proxmox-cert-sync",
+        "updateAppVersion": true
+      }
+    ],
+    [
+      "@semantic-release/git",
+      {
+        "assets": [
+          "kube/charts/proxmox-cert-sync/Chart.yaml",
+          "kube/charts/proxmox-cert-sync/values.yaml"
+        ],
+        "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
+      }
+    ],
     "@semantic-release/github"
   ]
 }

@@ -12,6 +12,8 @@ jobs:
       semantic-release-plugins: >-
         @semantic-release/commit-analyzer
         @semantic-release/release-notes-generator
+        semantic-release-helm
+        @semantic-release/git
         @semantic-release/github
     permissions:
       contents: write
@@ -73,3 +75,16 @@ jobs:
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+  publish_helm_chart:
+    name: Publish Helm Chart
+    needs: release
+    if: needs.release.outputs.published == '1'
+    uses: liofal/actions/.github/workflows/publish_helm.yml@main
+    permissions:
+      contents: read
+      packages: write
+    with:
+      tag: ${{ needs.release.outputs.version }}
+      chart_path: kube/charts/proxmox-cert-sync
+    secrets: inherit
