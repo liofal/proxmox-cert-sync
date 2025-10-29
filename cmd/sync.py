@@ -267,9 +267,19 @@ def _verify_remote_certificate(session: requests.Session, config: Config) -> Non
     if response.status_code >= 400:
         _log("warn", "Unable to verify remote certificate", http_status=response.status_code)
         return
-    data = response.json().get("data") or {}
-    fingerprint = data.get("fingerprint")
-    not_after = data.get("notafter")
+    payload = response.json().get("data")
+    info: dict = {}
+    if isinstance(payload, dict):
+        info = payload
+    elif isinstance(payload, list):
+        for entry in payload:
+            if isinstance(entry, dict) and entry.get("filename") == "pveproxy-ssl.pem":
+                info = entry
+                break
+        else:
+            info = payload[0] if payload and isinstance(payload[0], dict) else {}
+    fingerprint = info.get("fingerprint")
+    not_after = info.get("notafter")
     _log("info", "Remote certificate state", fingerprint=fingerprint, not_after=not_after)
 
 
