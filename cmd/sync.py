@@ -254,7 +254,8 @@ def _poll_task(session: requests.Session, config: Config, task_id: str) -> None:
 def _restart_services(session: requests.Session, config: Config) -> None:
     for service in config.services_to_restart:
         url = f"{config.api_url}/api2/json/nodes/{config.node_name}/services/{service}/restart"
-        response = session.put(url, timeout=15)
+        # Proxmox expects a POST for service restarts; PUT returns 501 on recent releases.
+        response = session.post(url, timeout=15)
         if response.status_code >= 400:
             raise RuntimeError(f"Failed to restart service {service}: HTTP {response.status_code} {response.text}")
         _log("info", "Service restart requested", service=service)
